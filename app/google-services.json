@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "204713853312",
+    "project_id": "caruze-33fa8",
+    "storage_bucket": "caruze-33fa8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:204713853312:android:a087546f4e493ddcd28165",
+        "android_client_info": {
+          "package_name": "com.henry.caruze"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDPrva0Hk3JFyLWuxGZH1eFKrUvhSgKiZw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
