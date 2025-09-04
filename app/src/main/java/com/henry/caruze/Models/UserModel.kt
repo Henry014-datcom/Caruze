@@ -5,7 +5,8 @@ data class User(
     val email: String = "",
     val phone: String = "",
     val profileImage: String = "",
-    val userId: String = ""
+    val userId: String = "",
+    val role: String = "Seller" // Default role is Seller
 ) {
     // Empty constructor for Firebase
     constructor() : this("", "", "", "", "")

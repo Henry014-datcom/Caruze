@@ -16,5 +16,5 @@ const val ROUTE_TRUCK = "truck"
 const val ROUTE_LUXURY = "luxury"
 const val ROUTE_UPDATE_CAR = "update_car/{carId}"
 
-// Route for car details (with parameter)
+// Route for car details
 const val ROUTE_CAR_DETAILS = "car_details/{carId}"

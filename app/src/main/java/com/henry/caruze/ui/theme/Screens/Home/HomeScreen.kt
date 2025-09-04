@@ -15,19 +15,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Sell
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -60,7 +62,10 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
+import com.google.firebase.auth.FirebaseAuth
 import com.henry.caruze.Data.CarViewModel
+import com.henry.caruze.Data.UserViewModel
+import com.henry.caruze.Navigation.ROUTE_LOGIN
 import com.henry.caruze.Navigation.ROUTE_LUXURY
 import com.henry.caruze.Navigation.ROUTE_PROFILE
 import com.henry.caruze.Navigation.ROUTE_SEARCH
@@ -73,10 +78,13 @@ import com.henry.caruze.Navigation.ROUTE_TRUCK
 @Composable
 fun HomeScreen(navController: NavHostController) {
     var selectedTab by remember { mutableStateOf(0) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
     val carViewModel: CarViewModel = viewModel()
+    val userViewModel: UserViewModel = viewModel()
 
-    // Fetch cars when the screen is launched
+    // Fetch current user and cars when the screen is launched
     LaunchedEffect(Unit) {
+        userViewModel.fetchCurrentUser()
         carViewModel.loadCars()
     }
 
@@ -93,16 +101,30 @@ fun HomeScreen(navController: NavHostController) {
                     titleContentColor = Color.White
                 ),
                 actions = {
+                    // Show user role in top bar if available
+                    userViewModel.currentUser.value?.let { user ->
+                        if (user.role == "Admin") {
+                            Text(
+                                text = "Admin",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                        }
+                    }
+
                     IconButton(onClick = { navController.navigate(ROUTE_SEARCH) }) {
                         Icon(
                             Icons.Default.Search,
                             contentDescription = "Search",
                             tint = Color.White)
                     }
-                    IconButton(onClick = { /* Handle notifications */ }) {
-                        Icon(Icons.Default.Notifications,
-                            contentDescription = "Notifications",
-                            tint = Color.White)
+                    IconButton(onClick = { showLogoutDialog = true }) {
+                        Icon(
+                            Icons.Default.ExitToApp,
+                            contentDescription = "Logout",
+                            tint = Color.White
+                        )
                     }
                 }
             )
@@ -113,7 +135,7 @@ fun HomeScreen(navController: NavHostController) {
             ) {
                 val bottomItems = listOf(
                     "Home" to Icons.Default.Home,
-                    "Sell" to Icons.Default.ShoppingCart,
+                    "Sell" to Icons.Default.Sell,
                     "Profile" to Icons.Default.Person
                 )
 
@@ -147,6 +169,25 @@ fun HomeScreen(navController: NavHostController) {
             }
         }
     ) { innerPadding ->
+        // Logout Confirmation Dialog
+        if (showLogoutDialog) {
+            LogoutConfirmationDialog(
+                onConfirm = {
+                    // Perform logout
+                    FirebaseAuth.getInstance().signOut()
+                    // Clear car data
+                    carViewModel.clearAllData()
+                    userViewModel.currentUser.value = null
+                    // Navigate to login screen
+                    navController.navigate(ROUTE_LOGIN) {
+                        popUpTo(0) // Clear back stack
+                    }
+                    showLogoutDialog = false
+                },
+                onDismiss = { showLogoutDialog = false }
+            )
+        }
+
         // Use the observable cars list directly instead of getAllCars()
         val allCars = carViewModel.cars
         val isLoading = carViewModel.isLoading
@@ -169,7 +210,7 @@ fun HomeScreen(navController: NavHostController) {
                     .background(Color(0xFFF5F5F5))
             ) {
                 // Search Bar
-                SearchBar(modifier = Modifier.padding(16.dp))
+                SearchBar(modifier = Modifier.padding(16.dp), navController = navController)
 
                 // Quick Categories
                 QuickCategories(navController)
@@ -181,19 +222,60 @@ fun HomeScreen(navController: NavHostController) {
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
 
-                FeaturedCarsList(navController, allCars)
-
+                FeaturedCarsList(navController, allCars, userViewModel)
             }
         }
     }
 }
 
 @Composable
-fun SearchBar(modifier: Modifier = Modifier) {
+fun LogoutConfirmationDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Logout", fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Text("Are you sure you want to logout?")
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+            ) {
+                Text("Yes, Logout", color = Color.White)
+            }
+        },
+        dismissButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)
+            ) {
+                Text("Cancel", color = Color.White)
+            }
+        }
+    )
+}
+
+@Composable
+fun SearchBar(modifier: Modifier = Modifier, navController: NavHostController) {
+    val carViewModel: CarViewModel = viewModel()
+    var isLoading by remember { mutableStateOf(false) }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clickable { /* Open search screen */ },
+            .clickable {
+                isLoading = true
+                // Fetch data from Firebase when search is clicked
+                carViewModel.loadCars()
+                // Navigate to search screen
+                navController.navigate(ROUTE_SEARCH)
+                isLoading = false
+            },
         elevation = CardDefaults.cardElevation(4.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -203,14 +285,22 @@ fun SearchBar(modifier: Modifier = Modifier) {
                 .padding(16.dp)
                 .fillMaxWidth()
         ) {
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = "Search",
-                tint = Color.Gray
-            )
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                    color = Color.Gray
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Search",
+                    tint = Color.Gray
+                )
+            }
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "Search for cars...",
+                text = if (isLoading) "Loading cars..." else "Search for cars...",
                 color = Color.Gray
             )
         }
@@ -255,7 +345,7 @@ fun QuickCategories(navController: NavHostController) {
 }
 
 @Composable
-fun FeaturedCarsList(navController: NavHostController, cars: List<CarData>) {
+fun FeaturedCarsList(navController: NavHostController, cars: List<CarData>, userViewModel: UserViewModel) {
     // Get featured cars (first 5 cars) with null safety
     val featuredCars = cars.take(5)
 
@@ -279,7 +369,7 @@ fun FeaturedCarsList(navController: NavHostController, cars: List<CarData>) {
             contentPadding = PaddingValues(horizontal = 16.dp)
         ) {
             items(featuredCars) { car ->
-                FeaturedCarCard(car, navController)
+                FeaturedCarCard(car, navController, userViewModel)
             }
         }
     }
@@ -289,6 +379,7 @@ fun FeaturedCarsList(navController: NavHostController, cars: List<CarData>) {
 fun FeaturedCarCard(
     car: CarData,
     navController: NavHostController,
+    userViewModel: UserViewModel,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -407,30 +498,22 @@ fun FeaturedCarCard(
                         color = getCategoryColor(car.category ?: "Other")
                     )
 
-                    // Removed the duplicate seller info since we added it above
+                    // Show admin badge if user is admin
+                    userViewModel.currentUser.value?.let { user ->
+                        if (user.role == "Admin") {
+                            Text(
+                                text = "Admin View",
+                                fontSize = 10.sp,
+                                color = Color.Red,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
-@Composable
-fun FeaturedCarsSection(navController: NavHostController, featuredCars: List<CarData>) {
-    LazyRow(
-        modifier = Modifier.padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(horizontal = 16.dp)
-    ) {
-        items(featuredCars) { car ->
-            FeaturedCarCard(
-                car = car,
-                navController = navController,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-        }
-    }
-}
-
-
 
 // Helper function to get category color with safe default
 fun getCategoryColor(category: String): Color {
